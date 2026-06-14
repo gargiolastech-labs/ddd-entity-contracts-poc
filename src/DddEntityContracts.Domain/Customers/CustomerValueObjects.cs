@@ -82,3 +82,9 @@ public sealed record PhoneNumber
         return Validation<PhoneNumber>.Combine(vMaxLength, vFormat, (_, _) => new PhoneNumber(trimmed));
     }
 }
+
+public enum CustomerStatus
+{
+    Active = 1,
+    Inactive = 2
+}

@@ -10,6 +10,7 @@ public sealed class Customer :
     public CustomerName Name { get; private set; } = default!;
     public Email Email { get; private set; } = default!;
     public PhoneNumber Phone { get; private set; } = default!;
+    public CustomerStatus Status { get; private set; } = CustomerStatus.Active;
 
     private Customer(CustomerId id) : base(id) { }
 
@@ -30,7 +31,7 @@ public sealed class Customer :
             });
     }
 
-    // --- Update ---
+    // --- Update (generic) ---
 
     public Result Update(UpdateCustomerRequest request)
     {
@@ -47,6 +48,66 @@ public sealed class Customer :
 
         changes.ApplyTo(this);
         Raise(new CustomerUpdated(Id, changes.ChangedFields));
+        return Result.Success();
+    }
+
+    // --- Lifecycle ---
+
+    public Result Activate()
+    {
+        if (Status == CustomerStatus.Active)
+            return Result.Success();
+
+        Status = CustomerStatus.Active;
+        Raise(new CustomerActivated(Id));
+        return Result.Success();
+    }
+
+    public Result Deactivate(string? reason = null)
+    {
+        if (Status == CustomerStatus.Inactive)
+            return Result.Success();
+
+        Status = CustomerStatus.Inactive;
+        Raise(new CustomerDeactivated(Id, reason));
+        return Result.Success();
+    }
+
+    // --- Targeted edits ---
+
+    public Result ChangeEmail(string? email)
+    {
+        var validation = BuildValidatedState(new CustomerStateInput(Name.Value, email, Phone.Value))
+            .ToResult()
+            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
+
+        if (validation.IsFailure)
+            return Result.Failure(validation.Errors);
+
+        var delta = Delta<Email>.From(this.Email, validation.Value.Email);
+        if (!delta.IsChanged)
+            return Result.Success();
+
+        this.Email = delta.Value!;
+        Raise(new CustomerUpdated(Id, new[] { "Email" }));
+        return Result.Success();
+    }
+
+    public Result ChangePhone(string? phone)
+    {
+        var validation = BuildValidatedState(new CustomerStateInput(Name.Value, Email.Value, phone))
+            .ToResult()
+            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
+
+        if (validation.IsFailure)
+            return Result.Failure(validation.Errors);
+
+        var delta = Delta<PhoneNumber>.From(Phone, validation.Value.Phone);
+        if (!delta.IsChanged)
+            return Result.Success();
+
+        Phone = delta.Value!;
+        Raise(new CustomerUpdated(Id, new[] { "Phone" }));
         return Result.Success();
     }
 
