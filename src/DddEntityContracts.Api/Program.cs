@@ -1,8 +1,16 @@
+using Application;
+using Application.Abstractions.Notifications;
+using Application.Abstractions.Outbox;
 using Domain.SharedKernel;
 using DddEntityContracts.Api.Behaviors;
+using DddEntityContracts.Api.Stubs;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
+
+builder.Services.AddApplicationEventHandlers();
+builder.Services.AddSingleton<IOutboxWriter, InMemoryOutboxWriter>();
+builder.Services.AddSingleton<ICustomerNotificationSender, NoOpCustomerNotificationSender>();
 
 var app = builder.Build();
 
