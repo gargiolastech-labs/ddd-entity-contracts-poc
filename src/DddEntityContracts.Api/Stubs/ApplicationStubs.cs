@@ -8,13 +8,17 @@ namespace DddEntityContracts.Api.Stubs;
 
 internal sealed class InMemoryOutboxWriter : IOutboxWriter
 {
+    private readonly object _gate = new();
     private readonly List<OutboxMessage> _messages = [];
 
-    public IReadOnlyList<OutboxMessage> Messages => _messages;
+    public IReadOnlyList<OutboxMessage> Messages
+    {
+        get { lock (_gate) return _messages.ToArray(); }
+    }
 
     public Task EnqueueAsync(OutboxMessage message, CancellationToken cancellationToken = default)
     {
-        _messages.Add(message);
+        lock (_gate) _messages.Add(message);
         return Task.CompletedTask;
     }
 }

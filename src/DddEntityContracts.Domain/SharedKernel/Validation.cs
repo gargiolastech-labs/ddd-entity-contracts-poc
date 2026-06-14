@@ -17,7 +17,13 @@ public sealed class Validation<T>
 
     public static Validation<T> Success(T value) => new(value, []);
     public static Validation<T> Failure(Error error) => new(default!, [error]);
-    public static Validation<T> Failure(IEnumerable<Error> errors) => new(default!, [.. errors]);
+    public static Validation<T> Failure(IEnumerable<Error> errors)
+    {
+        var list = errors.ToList();
+        if (list.Count == 0)
+            throw new InvalidOperationException("A failed validation must contain at least one error.");
+        return new(default!, list);
+    }
 
     public Result<T> ToResult() =>
         IsSuccess ? Result<T>.Success(_value) : Result<T>.Failure(_errors);

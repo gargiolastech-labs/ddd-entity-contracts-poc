@@ -45,4 +45,22 @@ public class CustomerCreationTests
 
         result.Value.DomainEvents.Should().ContainSingle(e => e is CustomerCreated);
     }
+
+    [Fact]
+    public void CustomerId_From_EmptyGuid_Throws()
+    {
+        var act = () => CustomerId.From(Guid.Empty);
+
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*cannot be empty*");
+    }
+
+    [Fact]
+    public void CustomerId_From_ValidGuid_Succeeds()
+    {
+        var guid = Guid.NewGuid();
+        var id = CustomerId.From(guid);
+
+        id.Value.Should().Be(guid);
+    }
 }

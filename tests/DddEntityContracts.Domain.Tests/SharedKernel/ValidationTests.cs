@@ -53,6 +53,15 @@ public class ValidationTests
     }
 
     [Fact]
+    public void Validation_Failure_WithEmptyErrors_ThrowsInvalidOperation()
+    {
+        var act = () => Validation<int>.Failure(Enumerable.Empty<Error>());
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*at least one error*");
+    }
+
+    [Fact]
     public void Validation_Combine_WithMixedFailures_DoesNotCallProjector()
     {
         var v1 = Validation<int>.Success(10);
