@@ -242,3 +242,9 @@ Nel PoC: `CustomerName`, `Email`, `PhoneNumber` sono VO. Anche `CustomerId` (rec
 Approfondimento: [conventions/value-object-authoring.md](../conventions/value-object-authoring.md).
 
 Contrapposto a: **Entity**.
+
+---
+
+## Prossimo passo
+
+Per la procedura operativa quando si introduce un nuovo aggregate nel dominio: [09 — Aggiungere una nuova entità](09-aggiungere-nuova-entita.md).

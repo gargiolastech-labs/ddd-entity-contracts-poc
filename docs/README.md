@@ -16,6 +16,7 @@ Per chi si avvicina al progetto per la prima volta, seguire l'ordine numerico in
 | 06 | [API — pipeline ProblemDetails](guida/06-api-problemdetails.md) | Per capire come `Result` viene tradotto in HTTP. |
 | 07 | [Strategia di test](guida/07-testing.md) | Prima di scrivere nuovi test. |
 | 08 | [Glossario DDD](guida/08-glossario.md) | Riferimento per la terminologia. |
+| 09 | [Aggiungere una nuova entità](guida/09-aggiungere-nuova-entita.md) | Procedura step-by-step quando crei un nuovo aggregate. |
 
 ## Documentazione di riferimento
 
@@ -36,7 +37,7 @@ Template operativi:
 
 **Sei un nuovo collaboratore?** Leggi 01 → 02 → 04 nell'ordine.
 
-**Stai aggiungendo un nuovo aggregate?** Studia 03, 04 e 05; poi parti dal [template](templates/aggregate-authoring-template.md).
+**Stai aggiungendo un nuovo aggregate?** Segui la procedura in [09 — Aggiungere una nuova entità](guida/09-aggiungere-nuova-entita.md); usa il [template](templates/aggregate-authoring-template.md) come scheletro di codice e [04 — Customer walkthrough](guida/04-customer-walkthrough.md) come esempio già esistente.
 
 **Stai esponendo un nuovo endpoint?** 06 + i test in `tests/DddEntityContracts.Api.Tests/`.
 
