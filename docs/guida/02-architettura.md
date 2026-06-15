@@ -32,6 +32,7 @@ Il PoC è strutturato in tre layer concentrici. La direzione delle dipendenze va
 │                                                             │
 │  - SharedKernel/ (Result, Validation, Delta, Entity, Error) │
 │  - Customers/ (Customer, CustomerValueObjects, Events)      │
+│  - Products/ (Product, ProductValueObjects, Events)         │
 │                                                             │
 │   Nessun riferimento a NuGet esterni.                       │
 │   Nessuna conoscenza di Application o Api.                  │
@@ -46,6 +47,7 @@ Il cuore del PoC. Contiene:
 
 - **Shared Kernel**: primitive riusabili da qualunque aggregate (`Result`, `Validation`, `Delta`, `Entity`, `Error`, `IDomainEvent`, `IDomainCreatable`, `IDomainUpdatable`, `ValueObjectGuards`, `StronglyTypedId`).
 - **Customers**: l'aggregate pilota `Customer` con i suoi Value Object (`CustomerName`, `Email`, `PhoneNumber`, `CustomerId`) e i suoi eventi di dominio (`CustomerCreated`, `CustomerUpdated`, `CustomerActivated`, `CustomerDeactivated`).
+- **Products**: secondo aggregate `Product` con VO (`ProductId`, `Sku`, `ProductName`, `ProductDescription`, `Money`) e eventi (`ProductCreated`, `ProductUpdated`, `ProductPublished`, `ProductArchived`). Lifecycle a tre stati `Draft → Published → Archived`.
 
 Vincoli architetturali del Domain:
 
@@ -65,8 +67,8 @@ Approfondimento: [03 — Shared Kernel](03-shared-kernel.md), [04 — Customer w
 Orchestrazione e mediation tra Domain e mondo esterno. Contiene:
 
 - **Abstractions**: contratti che il Domain non deve conoscere (`IDomainEventHandler`, `IOutboxWriter`, `ICustomerNotificationSender`).
-- **Contracts**: integration events DTO (`CustomerRegisteredIntegrationEvent`, `CustomerDeactivatedIntegrationEvent`) che vivono **solo qui**, mai nel Domain.
-- **EventHandlers**: handler che intercettano eventi di dominio e producono o side-effect interni o messaggi outbox.
+- **Contracts**: integration events DTO (`CustomerRegisteredIntegrationEvent`, `CustomerDeactivatedIntegrationEvent`, `ProductPublishedIntegrationEvent`) che vivono **solo qui**, mai nel Domain.
+- **EventHandlers**: handler che intercettano eventi di dominio e producono o side-effect interni o messaggi outbox. Organizzati per aggregate (`Customers/EventHandlers/`, `Products/EventHandlers/`).
 - **ServiceCollection extension**: `AddApplicationEventHandlers()` per registrare gli handler nel DI container.
 
 Vincoli architetturali dell'Application:

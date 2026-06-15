@@ -2,7 +2,7 @@
 
 Questo documento descrive **cosa testare**, **dove testare**, e **come scrivere un test che si legga senza commenti**.
 
-Al momento il PoC ha 74 test totali (61 Domain + 7 Application + 3 Api), tutti verdi. Le righe guida che seguono sono ricavate dai pattern adottati nei test esistenti.
+Al momento il PoC ha 136 test totali (123 Domain + 10 Application + 3 Api), tutti verdi. Le righe guida che seguono sono ricavate dai pattern adottati nei test esistenti.
 
 ---
 

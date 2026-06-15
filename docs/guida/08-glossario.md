@@ -8,11 +8,14 @@ Glossario dei termini DDD e architetturali usati nel codebase. Per ogni termine,
 
 Cluster di oggetti del dominio trattati come una **singola unità transazionale**. Ha una **root entity** (chiamata Aggregate Root) che è l'unica via di accesso esterna.
 
-Nel PoC: `Customer` è un Aggregate Root semplice. Il cluster è composto da `Customer` + i suoi VO (`CustomerName`, `Email`, `PhoneNumber`).
+Nel PoC ci sono due aggregate:
 
-Regola: **operazioni di scrittura esterne** parlano sempre con l'Aggregate Root, mai con i tipi interni. Sono i metodi pubblici di `Customer` (`Create`, `Update`, `Activate`, `Deactivate`, `ChangeEmail`, `ChangePhone`).
+- `Customer` — semplice; cluster composto da `Customer` + VO (`CustomerName`, `Email`, `PhoneNumber`).
+- `Product` — secondo aggregate; cluster composto da `Product` + VO (`Sku`, `ProductName`, `ProductDescription`, `Money`).
 
-Vedi: `src/DddEntityContracts.Domain/Customers/Customer.cs`.
+Regola: **operazioni di scrittura esterne** parlano sempre con l'Aggregate Root, mai con i tipi interni. Sono i metodi pubblici di `Customer` (`Create`, `Update`, `Activate`, `Deactivate`, `ChangeEmail`, `ChangePhone`) e di `Product` (`Create`, `Update`, `Publish`, `Archive`, `ChangePrice`).
+
+Vedi: `src/DddEntityContracts.Domain/Customers/Customer.cs`, `src/DddEntityContracts.Domain/Products/Product.cs`.
 
 ---
 
@@ -20,7 +23,7 @@ Vedi: `src/DddEntityContracts.Domain/Customers/Customer.cs`.
 
 L'entità che fa da "punto di ingresso" all'aggregate. Espone le operazioni di business; tutto il resto è dietro un setter privato.
 
-Nel PoC: `Customer` (eredita da `Entity<CustomerId>`).
+Nel PoC: `Customer` (eredita da `Entity<CustomerId>`) e `Product` (eredita da `Entity<ProductId>`).
 
 ---
 
@@ -46,7 +49,7 @@ Operazione su un aggregate che ha **un nome di business** (non "update di un cam
 
 Una behavioral operation solleva tipicamente un evento dedicato (`CustomerActivated`, non solo `CustomerUpdated`).
 
-Vedi: `Customer.Activate`, `Customer.Deactivate`, ed eventi `CustomerActivated`, `CustomerDeactivated`.
+Vedi: `Customer.Activate`, `Customer.Deactivate`, `Product.Publish`, `Product.Archive`, ed eventi correlati (`CustomerActivated`, `CustomerDeactivated`, `ProductPublished`, `ProductArchived`).
 
 ---
 
@@ -124,6 +127,8 @@ Nel PoC:
 - `Customer.Activate()` su un customer già attivo: nessun evento, ritorna `Success`.
 - `Customer.Deactivate()` su un customer già inattivo: idem.
 - `Customer.Update(request)` con request identico allo stato corrente: nessun evento.
+- `Product.Publish()` su un prodotto già pubblicato: nessun evento.
+- `Product.Archive()` su un prodotto già archiviato: idem.
 - Gli integration events portano `DeduplicationKey` perché la consegna at-least-once richiede idempotenza downstream.
 
 ---

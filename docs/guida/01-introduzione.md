@@ -17,7 +17,12 @@ In molti codebase DDD si vedono ricorrere gli stessi anti-pattern:
 - **Eccezioni come canale di errore di business**: si lanciano `ArgumentException` per email malformate, intrecciando bug di programmazione e regole di dominio.
 - **Generic abstractions premature**: si scrive `Repository<T>`, `Validator<T>`, `Handler<T>` prima ancora di avere due aggregate.
 
-Questo PoC propone una risposta sistematica a ognuno di questi problemi, dimostrata sull'aggregate pilota `Customer`.
+Questo PoC propone una risposta sistematica a ognuno di questi problemi, dimostrata su due aggregate reali:
+
+- **`Customer`** — aggregate pilota originario, copre `Create`, `Update`, behavioral operations (`Activate`/`Deactivate`) e targeted edits (`ChangeEmail`/`ChangePhone`).
+- **`Product`** — secondo aggregate, introdotto seguendo letteralmente la procedura della [guida 09](09-aggiungere-nuova-entita.md). Dimostra che la convenzione è replicabile su un dominio diverso (lifecycle a 3 stati `Draft → Published → Archived`, VO composto `Money(Amount, Currency)`, state-machine guards più ricchi).
+
+Avere due aggregate non identici è importante: dimostra che il pattern non è "fitted" su Customer ma è davvero un'astrazione utile.
 
 ## Le idee guida
 
@@ -71,10 +76,10 @@ Al momento della redazione di questa documentazione:
 
 | Layer | LOC sorgenti | Test |
 |---|---|---|
-| `DddEntityContracts.Domain` | ~430 | 64 |
-| `DddEntityContracts.Application` | ~140 | 7 |
+| `DddEntityContracts.Domain` | ~850 | 123 |
+| `DddEntityContracts.Application` | ~190 | 10 |
 | `DddEntityContracts.Api` | ~80 | 3 |
-| **Totale** | **~650** | **74** |
+| **Totale** | **~1.120** | **136** |
 
 `dotnet build` e `dotnet test` devono passare a 0 errori, 0 warning su ogni branch.
 

@@ -109,7 +109,18 @@ Un singolo evento di dominio può avere **n handler** (zero-to-many). Ciascuno f
 
 ---
 
-## I tre handler attuali
+## Gli handler attuali
+
+Al momento sono registrati quattro handler:
+
+| Dominio source | Handler | Esce verso |
+|---|---|---|
+| `CustomerCreated` | `CustomerCreatedWelcomeEmailHandler` | Side-effect interno (`ICustomerNotificationSender`) |
+| `CustomerCreated` | `CustomerCreatedToIntegrationEventHandler` | Outbox (`CustomerRegistered.v1`) |
+| `CustomerDeactivated` | `CustomerDeactivatedToIntegrationEventHandler` | Outbox (`CustomerDeactivated.v1`) |
+| `ProductPublished` | `ProductPublishedToIntegrationEventHandler` | Outbox (`ProductPublished.v1`) |
+
+Un singolo domain event può essere indirizzato a **più handler**: `CustomerCreated` ha sia il side-effect (welcome email) sia il mapping a integration event. Nulla impedisce di aggiungere altri handler in futuro (es. audit log, analytics) — il pattern scala one-to-many naturalmente.
 
 ### 1. CustomerCreatedWelcomeEmailHandler (side-effect)
 
@@ -199,6 +210,34 @@ public Task HandleAsync(CustomerDeactivated domainEvent, CancellationToken cance
 
 Stessa struttura. Trade-off documentato nel codice: la `DeduplicationKey` è stabile per-customer. Se un customer viene disattivato, riattivato, e disattivato di nuovo, lo store outbox potrebbe scartare la seconda disattivazione. In produzione: chiave basata su `EventId` o `(CustomerId, OccurredAtUtc)`.
 
+### 4. ProductPublishedToIntegrationEventHandler
+
+```csharp
+public Task HandleAsync(ProductPublished domainEvent, CancellationToken cancellationToken = default)
+{
+    var productId = domainEvent.ProductId.Value;
+
+    var integrationEvent = new ProductPublishedIntegrationEvent(
+        EventId: Guid.NewGuid(),
+        OccurredAtUtc: DateTimeOffset.UtcNow,
+        Version: 1,
+        ProductId: productId);
+
+    var message = new OutboxMessage(
+        Id: Guid.NewGuid(),
+        Type: "ProductPublished.v1",
+        Payload: JsonSerializer.Serialize(integrationEvent),
+        OccurredAtUtc: integrationEvent.OccurredAtUtc,
+        DeduplicationKey: $"ProductPublished:{productId}");
+
+    return _outboxWriter.EnqueueAsync(message, cancellationToken);
+}
+```
+
+Stesso pattern dei due handler precedenti, applicato all'aggregate `Product`. Pubblica `ProductPublished.v1` quando il dominio solleva `ProductPublished` (cioè dopo `Product.Publish()` ha avuto successo).
+
+Nota: il dominio solleva `ProductPublished` **solo** nelle transizioni effettive Draft → Published. Se `Publish()` viene chiamato due volte di fila, la seconda è idempotente e non solleva alcun evento. Il numero di integration event pubblicati riflette quindi il numero di transizioni reali, non il numero di chiamate.
+
 ---
 
 ## Il pattern Outbox
@@ -284,6 +323,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IDomainEventHandler<CustomerCreated>, CustomerCreatedWelcomeEmailHandler>();
         services.AddScoped<IDomainEventHandler<CustomerCreated>, CustomerCreatedToIntegrationEventHandler>();
         services.AddScoped<IDomainEventHandler<CustomerDeactivated>, CustomerDeactivatedToIntegrationEventHandler>();
+        services.AddScoped<IDomainEventHandler<ProductPublished>, ProductPublishedToIntegrationEventHandler>();
         return services;
     }
 }
@@ -301,9 +341,10 @@ I test sono in `tests/DddEntityContracts.Application.Tests/`:
 
 | File | Cosa verifica |
 |---|---|
-| `CustomerCreatedWelcomeEmailHandlerTests.cs` | Welcome email triggered, nessun outbox |
-| `CustomerCreatedToIntegrationEventHandlerTests.cs` | Mapping → integration event, type stabile, dedup key stabile su redelivery |
-| `CustomerDeactivatedToIntegrationEventHandlerTests.cs` | Mapping, reason preservata, payload con soli primitive |
+| `Customers/EventHandlers/CustomerCreatedWelcomeEmailHandlerTests.cs` | Welcome email triggered, nessun outbox |
+| `Customers/EventHandlers/CustomerCreatedToIntegrationEventHandlerTests.cs` | Mapping → integration event, type stabile, dedup key stabile su redelivery |
+| `Customers/EventHandlers/CustomerDeactivatedToIntegrationEventHandlerTests.cs` | Mapping, reason preservata, payload con soli primitive |
+| `Products/EventHandlers/ProductPublishedToIntegrationEventHandlerTests.cs` | Mapping ProductPublished, payload con primitive, idempotenza redelivery |
 
 I test usano due fake in `Fakes/`:
 

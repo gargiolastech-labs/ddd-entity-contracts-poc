@@ -2,6 +2,13 @@
 
 Questa cartella raccoglie tutta la documentazione tecnica di `ddd-entity-contracts-poc`.
 
+## Aggregate implementati
+
+| Aggregate | Stato | Walkthrough |
+|---|---|---|
+| `Customer` | Pilota — copre Create, Update, Activate/Deactivate, ChangeEmail/ChangePhone | [04 — Customer walkthrough](guida/04-customer-walkthrough.md) |
+| `Product` | Secondo aggregate — esempio applicato della procedura per nuove entità | [09 — Esempio applicato](guida/09-aggiungere-nuova-entita.md#esempio-applicato-laggregate-product) |
+
 ## Percorso consigliato di lettura
 
 Per chi si avvicina al progetto per la prima volta, seguire l'ordine numerico in `guida/`:

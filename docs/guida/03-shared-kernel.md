@@ -287,6 +287,30 @@ return Validation<Email>.Combine(vMaxLength, vFormat, (_, _) => new Email(normal
 
 La scelta tra sequenziale e parallelo è di design del VO, non casuale.
 
+### VO multi-campo: il caso Money
+
+`Money` (in `src/DddEntityContracts.Domain/Products/ProductValueObjects.cs`) è un esempio di VO con **due campi correlati** validati insieme: `Amount` (decimal) e `Currency` (string ISO 3-letter). Ogni campo ha le sue regole, ma il VO non esiste se l'una o l'altra è invalida.
+
+```csharp
+public static Validation<Money> Create(decimal? amount, string? currency)
+{
+    var vAmount   = ValidateAmount(amount);     // Validation<decimal>
+    var vCurrency = ValidateCurrency(currency); // Validation<string>
+
+    return Validation<Money>.Combine(
+        vAmount, vCurrency,
+        (a, c) => new Money(a, c));
+}
+```
+
+Punti chiave:
+
+- I due metodi privati (`ValidateAmount`, `ValidateCurrency`) ritornano ognuno `Validation<T>` con il proprio tipo. `Amount` non è una `string`, quindi non si usa `ValueObjectGuards.NotNullOrWhiteSpace` direttamente — la validazione del decimal è inline.
+- `Combine` accumula errori: se sia `amount` sia `currency` sono invalidi, il client riceve entrambi gli errori.
+- Il costruttore privato di `Money` viene chiamato **solo** quando entrambe le validazioni sono success. Non esiste un `Money` con `Amount` negativo o `Currency` malformata.
+
+Questo è il pattern da usare ogni volta che un VO ha **più di un attributo** che deve essere validato. Vedi `Money.Create` per l'implementazione completa.
+
 ---
 
 ## StronglyTypedId
