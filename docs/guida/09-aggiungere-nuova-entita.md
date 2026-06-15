@@ -508,6 +508,33 @@ Se anche solo una risposta è "no", **non procedere allo step successivo**. Riso
 
 ---
 
+## Esempio applicato: l'aggregate Product
+
+La procedura descritta sopra è stata applicata per intero per introdurre l'aggregate `Product` nel repository. È **secondo aggregate reale**, oltre a `Customer`, ed esiste proprio per dimostrare che la convenzione è replicabile.
+
+Cosa cercare nel codice se vuoi vedere ogni step "concretizzato":
+
+| Step della guida | File reali nel repository |
+|---|---|
+| 1 — VO | `src/DddEntityContracts.Domain/Products/ProductValueObjects.cs` (ProductId, Sku, ProductName, ProductDescription, Money, ProductStatus enum) |
+| 2 — Request | `src/DddEntityContracts.Domain/Products/ProductEventsAndRequests.cs` (CreateProductRequest, UpdateProductRequest) |
+| 3 — Event | stesso file (ProductCreated, ProductUpdated, ProductPublished, ProductArchived) |
+| 4 — Aggregate | `src/DddEntityContracts.Domain/Products/Product.cs` |
+| 5 — Test Domain | `tests/DddEntityContracts.Domain.Tests/Products/` (5 file, 59 test) |
+| 6 — Application | `src/DddEntityContracts.Application/Contracts/IntegrationEvents/ProductPublishedIntegrationEvent.cs` + `src/DddEntityContracts.Application/Products/EventHandlers/ProductPublishedToIntegrationEventHandler.cs` |
+| 7 — Test Application | `tests/DddEntityContracts.Application.Tests/Products/EventHandlers/ProductPublishedToIntegrationEventHandlerTests.cs` (3 test) |
+
+Cosa rende `Product` interessante come esempio (in più rispetto a `Customer`):
+
+- **Money è un VO con due campi correlati** (`Amount` + `Currency`) validati insieme via `Combine`.
+- **Sku ha normalizzazione attiva** (uppercase) prima di passare il regex check.
+- **Lifecycle a tre stati con vincoli direzionali** (`Draft → Published → Archived`, no ritorni), non un toggle binario come `Active ↔ Inactive`.
+- **Operations con state-machine guards** (`Update` solo se `Draft`, `Publish` solo se `Draft + Description != null`, `Archive` solo se `Published`).
+- **Cross-field invariant non triviale** (`Amount > 1000 → Description obbligatoria`) verificato sia in `Create` sia in `Update` sia in `ChangePrice`.
+- **`BuildValidatedState` con 4 campi**, composto via doppio `Combine` annidato per accumulare oltre il limite di 3 argomenti.
+
+---
+
 ## Riferimenti rapidi
 
 - [Aggregate Authoring Template](../templates/aggregate-authoring-template.md) — lo scheletro di codice da copiare.
