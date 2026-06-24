@@ -16,11 +16,8 @@ public sealed class Customer :
 
     // --- Create ---
 
-    public static Result<Customer> Create(CreateCustomerRequest request)
-    {
-        return BuildValidatedState(request)
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult())
+    public static Result<Customer> Create(CreateCustomerRequest request) =>
+        ValidateState(new CustomerStateInput(request.Name, request.Email, request.Phone))
             .Map(state =>
             {
                 var id = CustomerId.New();
@@ -29,27 +26,11 @@ public sealed class Customer :
                 customer.Raise(new CustomerCreated(id));
                 return customer;
             });
-    }
 
     // --- Update (generic) ---
 
-    public Result Update(UpdateCustomerRequest request)
-    {
-        var validation = BuildValidatedState(request)
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
-
-        if (validation.IsFailure)
-            return Result.Failure(validation.Errors);
-
-        var changes = ChangeSet.Diff(this, validation.Value);
-        if (!changes.HasChanges)
-            return Result.Success();
-
-        changes.ApplyTo(this);
-        Raise(new CustomerUpdated(Id, changes.ChangedFields));
-        return Result.Success();
-    }
+    public Result Update(UpdateCustomerRequest request) =>
+        ApplyValidatedUpdate(new CustomerStateInput(request.Name, request.Email, request.Phone));
 
     // --- Lifecycle ---
 
@@ -75,59 +56,47 @@ public sealed class Customer :
 
     // --- Targeted edits ---
 
-    public Result ChangeEmail(string? email)
-    {
-        var validation = BuildValidatedState(new CustomerStateInput(Name.Value, email, Phone.Value))
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
+    public Result ChangeEmail(string? email) =>
+        ApplyValidatedUpdate(new CustomerStateInput(Name.Value, email, Phone.Value));
 
-        if (validation.IsFailure)
-            return Result.Failure(validation.Errors);
-
-        var delta = Delta<Email>.From(this.Email, validation.Value.Email);
-        if (!delta.IsChanged)
-            return Result.Success();
-
-        this.Email = delta.Value!;
-        Raise(new CustomerUpdated(Id, new[] { "Email" }));
-        return Result.Success();
-    }
-
-    public Result ChangePhone(string? phone)
-    {
-        var validation = BuildValidatedState(new CustomerStateInput(Name.Value, Email.Value, phone))
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
-
-        if (validation.IsFailure)
-            return Result.Failure(validation.Errors);
-
-        var delta = Delta<PhoneNumber>.From(Phone, validation.Value.Phone);
-        if (!delta.IsChanged)
-            return Result.Success();
-
-        Phone = delta.Value!;
-        Raise(new CustomerUpdated(Id, new[] { "Phone" }));
-        return Result.Success();
-    }
+    public Result ChangePhone(string? phone) =>
+        ApplyValidatedUpdate(new CustomerStateInput(Name.Value, Email.Value, phone));
 
     // --- Shared seam ---
 
-    private static Validation<ValidatedState> BuildValidatedState(CreateCustomerRequest request)
-        => BuildValidatedState(new CustomerStateInput(request.Name, request.Email, request.Phone));
+    private static readonly FieldMap<ValidatedState> Fields = new FieldMap<ValidatedState>()
+        .Track(nameof(ValidatedState.Name),  s => s.Name)
+        .Track(nameof(ValidatedState.Email), s => s.Email)
+        .Track(nameof(ValidatedState.Phone), s => s.Phone)
+        .Seal();
 
-    private static Validation<ValidatedState> BuildValidatedState(UpdateCustomerRequest request)
-        => BuildValidatedState(new CustomerStateInput(request.Name, request.Email, request.Phone));
+    private ValidatedState Snapshot() => new(Name, Email, Phone);
 
-    private static Validation<ValidatedState> BuildValidatedState(CustomerStateInput input)
+    private Result ApplyValidatedUpdate(CustomerStateInput input)
+    {
+        var validation = ValidateState(input);
+        if (validation.IsFailure) return Result.Failure(validation.Errors);
+
+        var next = validation.Value;
+        var changed = Fields.Diff(Snapshot(), next);
+        if (changed.Count == 0) return Result.Success();
+
+        Apply(next);
+        Raise(new CustomerUpdated(Id, changed));
+        return Result.Success();
+    }
+
+    private static Result<ValidatedState> ValidateState(CustomerStateInput input)
     {
         var vName  = CustomerName.Create(input.Name);
         var vEmail = Email.Create(input.Email);
         var vPhone = PhoneNumber.Create(input.Phone);
 
         return Validation<ValidatedState>.Combine(
-            vName, vEmail, vPhone,
-            (name, email, phone) => new ValidatedState(name, email, phone));
+                vName, vEmail, vPhone,
+                (name, email, phone) => new ValidatedState(name, email, phone))
+            .ToResult()
+            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
     }
 
     // An @internal.local email is a corporate address that requires a direct phone number on file.
@@ -154,36 +123,4 @@ public sealed class Customer :
     private sealed record CustomerStateInput(string? Name, string? Email, string? Phone);
 
     private sealed record ValidatedState(CustomerName Name, Email Email, PhoneNumber Phone);
-
-    private sealed record ChangeSet(
-        Delta<CustomerName> Name,
-        Delta<Email> Email,
-        Delta<PhoneNumber> Phone)
-    {
-        public bool HasChanges => Name.IsChanged || Email.IsChanged || Phone.IsChanged;
-
-        public IReadOnlyCollection<string> ChangedFields
-        {
-            get
-            {
-                var fields = new List<string>(3);
-                if (Name.IsChanged)  fields.Add(nameof(Name));
-                if (Email.IsChanged) fields.Add(nameof(Email));
-                if (Phone.IsChanged) fields.Add(nameof(Phone));
-                return fields.AsReadOnly();
-            }
-        }
-
-        public static ChangeSet Diff(Customer current, ValidatedState next) => new(
-            Delta<CustomerName>.From(current.Name, next.Name),
-            Delta<Email>.From(current.Email, next.Email),
-            Delta<PhoneNumber>.From(current.Phone, next.Phone));
-
-        public void ApplyTo(Customer customer)
-        {
-            if (Name.IsChanged)  customer.Name  = Name.Value!;
-            if (Email.IsChanged) customer.Email = Email.Value!;
-            if (Phone.IsChanged) customer.Phone = Phone.Value!;
-        }
-    }
 }

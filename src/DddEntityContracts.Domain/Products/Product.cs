@@ -7,21 +7,19 @@ public sealed class Product :
     IDomainCreatable<Product, CreateProductRequest>,
     IDomainUpdatable<UpdateProductRequest>
 {
-    public Sku Sku                       { get; private set; } = default!;
-    public ProductName Name              { get; private set; } = default!;
+    public Sku Sku                        { get; private set; } = default!;
+    public ProductName Name               { get; private set; } = default!;
     public ProductDescription Description { get; private set; } = default!;
-    public Money Price                   { get; private set; } = default!;
-    public ProductStatus Status          { get; private set; } = ProductStatus.Draft;
+    public Money Price                    { get; private set; } = default!;
+    public ProductStatus Status           { get; private set; } = ProductStatus.Draft;
 
     private Product(ProductId id) : base(id) { }
 
     // ── Create ────────────────────────────────────────────────────────────
 
-    public static Result<Product> Create(CreateProductRequest request)
-    {
-        return BuildValidatedState(request)
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult())
+    public static Result<Product> Create(CreateProductRequest request) =>
+        ValidateState(new ProductStateInput(
+                request.Sku, request.Name, request.Description, request.PriceAmount, request.PriceCurrency))
             .Map(state =>
             {
                 var id = ProductId.New();
@@ -30,7 +28,6 @@ public sealed class Product :
                 product.Raise(new ProductCreated(id));
                 return product;
             });
-    }
 
     // ── Update ────────────────────────────────────────────────────────────
 
@@ -41,20 +38,8 @@ public sealed class Product :
                 new Error("Product.UpdateNotAllowed",
                     "Product attributes can only be updated while in Draft status."));
 
-        var validation = BuildValidatedState(request)
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
-
-        if (validation.IsFailure)
-            return Result.Failure(validation.Errors);
-
-        var changes = ChangeSet.Diff(this, validation.Value);
-        if (!changes.HasChanges)
-            return Result.Success();
-
-        changes.ApplyTo(this);
-        Raise(new ProductUpdated(Id, changes.ChangedFields));
-        return Result.Success();
+        return ApplyValidatedUpdate(new ProductStateInput(
+            request.Sku, request.Name, request.Description, request.PriceAmount, request.PriceCurrency));
     }
 
     // ── Behavioral operations ─────────────────────────────────────────────
@@ -103,34 +88,36 @@ public sealed class Product :
                 new Error("Product.PriceChangeNotAllowed",
                     "Price can only be changed while in Draft status."));
 
-        var validation = BuildValidatedState(new ProductStateInput(
-                Sku.Value, Name.Value, Description.Value, amount, currency))
-            .ToResult()
-            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
-
-        if (validation.IsFailure)
-            return Result.Failure(validation.Errors);
-
-        var delta = Delta<Money>.From(Price, validation.Value.Price);
-        if (!delta.IsChanged)
-            return Result.Success();
-
-        Price = delta.Value!;
-        Raise(new ProductUpdated(Id, new[] { "Price" }));
-        return Result.Success();
+        return ApplyValidatedUpdate(new ProductStateInput(
+            Sku.Value, Name.Value, Description.Value, amount, currency));
     }
 
     // ── Shared seam ───────────────────────────────────────────────────────
 
-    private static Validation<ValidatedState> BuildValidatedState(CreateProductRequest r)
-        => BuildValidatedState(new ProductStateInput(
-            r.Sku, r.Name, r.Description, r.PriceAmount, r.PriceCurrency));
+    private static readonly FieldMap<ValidatedState> Fields = new FieldMap<ValidatedState>()
+        .Track(nameof(ValidatedState.Sku),         s => s.Sku)
+        .Track(nameof(ValidatedState.Name),        s => s.Name)
+        .Track(nameof(ValidatedState.Description), s => s.Description)
+        .Track(nameof(ValidatedState.Price),       s => s.Price)
+        .Seal();
 
-    private static Validation<ValidatedState> BuildValidatedState(UpdateProductRequest r)
-        => BuildValidatedState(new ProductStateInput(
-            r.Sku, r.Name, r.Description, r.PriceAmount, r.PriceCurrency));
+    private ValidatedState Snapshot() => new(Sku, Name, Description, Price);
 
-    private static Validation<ValidatedState> BuildValidatedState(ProductStateInput input)
+    private Result ApplyValidatedUpdate(ProductStateInput input)
+    {
+        var validation = ValidateState(input);
+        if (validation.IsFailure) return Result.Failure(validation.Errors);
+
+        var next = validation.Value;
+        var changed = Fields.Diff(Snapshot(), next);
+        if (changed.Count == 0) return Result.Success();
+
+        Apply(next);
+        Raise(new ProductUpdated(Id, changed));
+        return Result.Success();
+    }
+
+    private static Result<ValidatedState> ValidateState(ProductStateInput input)
     {
         var vSku         = Sku.Create(input.Sku);
         var vName        = ProductName.Create(input.Name);
@@ -146,8 +133,10 @@ public sealed class Product :
             vSku, vDescription, (s, d) => (s, d));
 
         return Validation<ValidatedState>.Combine(
-            vSkuDescription, vNamePrice,
-            (sd, np) => new ValidatedState(sd.Item1, np.Item1, sd.Item2, np.Item2));
+                vSkuDescription, vNamePrice,
+                (sd, np) => new ValidatedState(sd.Item1, np.Item1, sd.Item2, np.Item2))
+            .ToResult()
+            .Bind(state => CheckCrossFieldInvariants(state).ToResult());
     }
 
     // Cross-field invariant: premium products (price > 1000) must carry a description.
@@ -183,41 +172,4 @@ public sealed class Product :
         ProductName Name,
         ProductDescription Description,
         Money Price);
-
-    private sealed record ChangeSet(
-        Delta<Sku> Sku,
-        Delta<ProductName> Name,
-        Delta<ProductDescription> Description,
-        Delta<Money> Price)
-    {
-        public bool HasChanges =>
-            Sku.IsChanged || Name.IsChanged || Description.IsChanged || Price.IsChanged;
-
-        public IReadOnlyCollection<string> ChangedFields
-        {
-            get
-            {
-                var fields = new List<string>(4);
-                if (Sku.IsChanged)         fields.Add(nameof(Sku));
-                if (Name.IsChanged)        fields.Add(nameof(Name));
-                if (Description.IsChanged) fields.Add(nameof(Description));
-                if (Price.IsChanged)       fields.Add(nameof(Price));
-                return fields.AsReadOnly();
-            }
-        }
-
-        public static ChangeSet Diff(Product current, ValidatedState next) => new(
-            Delta<Sku>.From(current.Sku, next.Sku),
-            Delta<ProductName>.From(current.Name, next.Name),
-            Delta<ProductDescription>.From(current.Description, next.Description),
-            Delta<Money>.From(current.Price, next.Price));
-
-        public void ApplyTo(Product product)
-        {
-            if (Sku.IsChanged)         product.Sku         = Sku.Value!;
-            if (Name.IsChanged)        product.Name        = Name.Value!;
-            if (Description.IsChanged) product.Description = Description.Value!;
-            if (Price.IsChanged)       product.Price       = Price.Value!;
-        }
-    }
 }
