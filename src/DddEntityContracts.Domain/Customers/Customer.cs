@@ -67,7 +67,8 @@ public sealed class Customer :
     private static readonly FieldMap<ValidatedState> Fields = new FieldMap<ValidatedState>()
         .Track(nameof(ValidatedState.Name),  s => s.Name)
         .Track(nameof(ValidatedState.Email), s => s.Email)
-        .Track(nameof(ValidatedState.Phone), s => s.Phone);
+        .Track(nameof(ValidatedState.Phone), s => s.Phone)
+        .Seal();
 
     private ValidatedState Snapshot() => new(Name, Email, Phone);
 

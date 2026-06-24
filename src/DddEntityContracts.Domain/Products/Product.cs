@@ -98,7 +98,8 @@ public sealed class Product :
         .Track(nameof(ValidatedState.Sku),         s => s.Sku)
         .Track(nameof(ValidatedState.Name),        s => s.Name)
         .Track(nameof(ValidatedState.Description), s => s.Description)
-        .Track(nameof(ValidatedState.Price),       s => s.Price);
+        .Track(nameof(ValidatedState.Price),       s => s.Price)
+        .Seal();
 
     private ValidatedState Snapshot() => new(Sku, Name, Description, Price);
 
